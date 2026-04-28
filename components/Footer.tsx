@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 export default function Footer() {
   return (
     <footer className="bg-black border-t border-white/10 py-16">
@@ -22,38 +24,38 @@ export default function Footer() {
             <p className="text-green-400 font-bold mt-4 text-sm">Get Paid for Trash 🌿</p>
           </div>
 
-          {/* Links */}
+          {/* Navigate */}
           <div>
             <h4 className="text-white font-bold mb-4 text-sm uppercase tracking-wider">Navigate</h4>
             <ul className="space-y-3">
               {[
-                { label: "Home", href: "#hero" },
-                { label: "How It Works", href: "#product" },
-                { label: "The App", href: "#app" },
-                { label: "Business Model", href: "#business" },
+                { label: "Home", href: "/" },
+                { label: "About", href: "/about" },
+                { label: "Features", href: "/features" },
+                { label: "Financials", href: "/#financials" },
               ].map((link) => (
                 <li key={link.label}>
-                  <a href={link.href} className="text-gray-400 hover:text-green-400 transition-colors text-sm">
+                  <Link href={link.href} className="text-gray-400 hover:text-green-400 transition-colors text-sm">
                     {link.label}
-                  </a>
+                  </Link>
                 </li>
               ))}
             </ul>
           </div>
 
           <div>
-            <h4 className="text-white font-bold mb-4 text-sm uppercase tracking-wider">Company</h4>
+            <h4 className="text-white font-bold mb-4 text-sm uppercase tracking-wider">Account</h4>
             <ul className="space-y-3">
               {[
-                { label: "About", href: "#problem" },
-                { label: "Competitors", href: "#competitors" },
-                { label: "Financials", href: "#financials" },
-                { label: "Contact", href: "#cta" },
+                { label: "Login", href: "/auth/login" },
+                { label: "Sign Up", href: "/auth/signup" },
+                { label: "Dashboard", href: "/dashboard" },
+                { label: "Contact", href: "/#cta" },
               ].map((link) => (
                 <li key={link.label}>
-                  <a href={link.href} className="text-gray-400 hover:text-green-400 transition-colors text-sm">
+                  <Link href={link.href} className="text-gray-400 hover:text-green-400 transition-colors text-sm">
                     {link.label}
-                  </a>
+                  </Link>
                 </li>
               ))}
             </ul>
