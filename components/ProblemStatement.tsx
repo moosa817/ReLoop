@@ -1,3 +1,5 @@
+import AnimateIn from "@/components/AnimateIn";
+
 export default function ProblemStatement() {
   const cards = [
     {
@@ -35,43 +37,46 @@ export default function ProblemStatement() {
   return (
     <section id="problem" className="py-24 bg-[#0a0a0a]">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="text-center mb-16">
-          <span className="text-green-400 text-sm font-semibold uppercase tracking-widest mb-3 block">The Reality</span>
-          <h2 className="text-4xl sm:text-5xl font-black text-white mb-6">
-            The Problem{" "}
-            <span className="bg-clip-text text-transparent bg-gradient-to-r from-green-400 to-cyan-400">
-              Is Real
-            </span>
-          </h2>
-          <p className="text-xl text-gray-400 max-w-2xl mx-auto">
-            Pakistan&apos;s waste management system is broken. But hidden in that failure is a massive opportunity.
-          </p>
-        </div>
+        <AnimateIn>
+          <div className="text-center mb-16">
+            <span className="text-green-400 text-sm font-semibold uppercase tracking-widest mb-3 block">The Reality</span>
+            <h2 className="text-4xl sm:text-5xl font-black text-white mb-6">
+              The Problem{" "}
+              <span className="bg-clip-text text-transparent bg-gradient-to-r from-green-400 to-cyan-400">
+                Is Real
+              </span>
+            </h2>
+            <p className="text-xl text-gray-400 max-w-2xl mx-auto">
+              Pakistan&apos;s waste management system is broken. But hidden in that failure is a massive opportunity.
+            </p>
+          </div>
+        </AnimateIn>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-16">
-          {cards.map((card) => (
-            <div
-              key={card.title}
-              className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-8 hover:bg-white/10 hover:border-green-500/30 transition-all duration-300 hover:-translate-y-1 group"
-            >
-              <div className="bg-white/5 rounded-xl p-3 w-fit mb-6 group-hover:bg-green-500/10 transition-colors">
-                {card.icon}
+          {cards.map((card, i) => (
+            <AnimateIn key={card.title} delay={i * 120}>
+              <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-8 hover:bg-white/10 hover:border-green-500/30 transition-all duration-300 hover:-translate-y-1 group h-full">
+                <div className="bg-white/5 rounded-xl p-3 w-fit mb-6 group-hover:bg-green-500/10 transition-colors">
+                  {card.icon}
+                </div>
+                <h3 className="text-xl font-bold text-white mb-3">{card.title}</h3>
+                <p className="text-gray-400 leading-relaxed mb-4">{card.description}</p>
+                <div className="text-green-400 font-semibold text-sm">{card.highlight}</div>
               </div>
-              <h3 className="text-xl font-bold text-white mb-3">{card.title}</h3>
-              <p className="text-gray-400 leading-relaxed mb-4">{card.description}</p>
-              <div className="text-green-400 font-semibold text-sm">{card.highlight}</div>
-            </div>
+            </AnimateIn>
           ))}
         </div>
 
-        <div className="text-center">
-          <p className="text-2xl sm:text-3xl font-bold text-white">
-            Why throw it away for free{" "}
-            <span className="bg-clip-text text-transparent bg-gradient-to-r from-green-400 to-cyan-400">
-              when you can get paid?
-            </span>
-          </p>
-        </div>
+        <AnimateIn delay={200}>
+          <div className="text-center">
+            <p className="text-2xl sm:text-3xl font-bold text-white">
+              Why throw it away for free{" "}
+              <span className="bg-clip-text text-transparent bg-gradient-to-r from-green-400 to-cyan-400">
+                when you can get paid?
+              </span>
+            </p>
+          </div>
+        </AnimateIn>
       </div>
     </section>
   );
