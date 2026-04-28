@@ -13,18 +13,18 @@ export default function Footer() {
               </svg>
               <div>
                 <span className="text-2xl font-black text-green-400">ReLoop</span>
-                <p className="text-gray-500 text-sm">Pakistan</p>
+                <p className="text-gray-500 text-xs font-medium tracking-wider">PAKISTAN</p>
               </div>
             </div>
-            <p className="text-gray-400 leading-relaxed max-w-sm">
+            <p className="text-gray-400 leading-relaxed max-w-sm text-sm">
               Turning everyday waste into digital currency. Building Pakistan&apos;s circular economy, one pickup at a time.
             </p>
-            <p className="text-green-400 font-bold mt-3">Get Paid for Trash</p>
+            <p className="text-green-400 font-bold mt-4 text-sm">Get Paid for Trash 🌿</p>
           </div>
 
           {/* Links */}
           <div>
-            <h4 className="text-white font-bold mb-4">Navigate</h4>
+            <h4 className="text-white font-bold mb-4 text-sm uppercase tracking-wider">Navigate</h4>
             <ul className="space-y-3">
               {[
                 { label: "Home", href: "#hero" },
@@ -42,7 +42,7 @@ export default function Footer() {
           </div>
 
           <div>
-            <h4 className="text-white font-bold mb-4">Company</h4>
+            <h4 className="text-white font-bold mb-4 text-sm uppercase tracking-wider">Company</h4>
             <ul className="space-y-3">
               {[
                 { label: "About", href: "#problem" },
@@ -62,7 +62,7 @@ export default function Footer() {
 
         <div className="border-t border-white/10 pt-8 flex flex-col sm:flex-row justify-between items-center gap-4">
           <p className="text-gray-500 text-sm">
-            © 2024 ReLoop Pakistan. All rights reserved.
+            © {new Date().getFullYear()} ReLoop Pakistan. All rights reserved.
           </p>
           <p className="text-gray-600 text-sm">
             Built with 💚 for Pakistan&apos;s circular economy
