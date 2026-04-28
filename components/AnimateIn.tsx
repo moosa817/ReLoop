@@ -5,6 +5,9 @@ interface AnimateInProps {
   children: React.ReactNode;
   className?: string;
   delay?: number;
+  /** Fraction of the element that must be visible before animating in (0–1).
+   *  0.12 (12%) is intentionally low so elements start animating as soon as
+   *  a small portion enters the viewport, giving a natural scroll feel. */
   threshold?: number;
 }
 

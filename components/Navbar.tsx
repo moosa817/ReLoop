@@ -25,7 +25,8 @@ export default function Navbar() {
             </svg>
             <div>
               <span className="text-lg font-black text-green-400 leading-none">ReLoop</span>
-              <span className="block text-[10px] text-gray-500 leading-none -mt-0.5 font-medium tracking-wide">PAKISTAN</span>
+              {/* "PAKISTAN" sub-label sits tight below via leading-none on parent */}
+              <span className="block text-[10px] text-gray-500 leading-none font-medium tracking-wide">PAKISTAN</span>
             </div>
           </a>
 
