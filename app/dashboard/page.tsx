@@ -15,6 +15,17 @@ interface Transaction {
   frequency?: string;
 }
 
+interface ScheduledPickup {
+  id: string;
+  frequency: string;
+  recyclables: boolean;
+  trash: boolean;
+  monthlyFee: number;
+  nextPickupDate: string;
+  frequency_value?: string;
+  customDays?: number;
+}
+
 interface MaterialRate {
   material: string;
   rate: number;
@@ -169,6 +180,7 @@ export default function DashboardPage() {
   const [customDays, setCustomDays] = useState(1);
   const [useCustomSchedule, setUseCustomSchedule] = useState(false);
   const [addFundsAmount, setAddFundsAmount] = useState("");
+  const [scheduledPickups, setScheduledPickups] = useState<ScheduledPickup[]>([]);
   const [binsFull, setBinsFull] = useState({
     recyclables: false,
     organic: false,
@@ -198,6 +210,57 @@ export default function DashboardPage() {
     return Math.round(totalFee * 100) / 100;
   };
 
+  const calculateMonthlyLockedFees = (): number => {
+    return Math.round(
+      scheduledPickups.reduce((total, pickup) => total + pickup.monthlyFee, 0) * 100
+    ) / 100;
+  };
+
+  const getAvailableBalance = (): number => {
+    const lockedFees = calculateMonthlyLockedFees();
+    return Math.max(0, balance - lockedFees);
+  };
+
+  const calculateMonthlyFee = (
+    schedule: ScheduleOption | null,
+    recyclables: boolean,
+    trash: boolean,
+    customDays_?: number
+  ): number => {
+    if (!schedule && !customDays_) return 0;
+
+    const recyclableDaily = 2;
+    const trashDaily = customDays_ ? 50 / customDays_ : schedule?.trashFee || 0;
+
+    let perPickupFee = 0;
+    if (recyclables) perPickupFee += recyclableDaily;
+    if (trash) perPickupFee += trashDaily;
+
+    // Calculate pickups per month (assuming 30 days)
+    let pickupsPerMonth = 1;
+    if (customDays_) {
+      pickupsPerMonth = Math.round(30 / customDays_);
+    } else if (schedule?.value === "on-demand") {
+      pickupsPerMonth = 2; // Assume 2 pickups/month for on-demand
+    } else if (schedule?.value === "daily") {
+      pickupsPerMonth = 30;
+    } else if (schedule?.value === "every-2-days") {
+      pickupsPerMonth = 15;
+    } else if (schedule?.value === "every-3-days") {
+      pickupsPerMonth = 10;
+    } else if (schedule?.value === "every-4-days") {
+      pickupsPerMonth = 8;
+    } else if (schedule?.value === "every-5-days") {
+      pickupsPerMonth = 6;
+    } else if (schedule?.value === "every-6-days") {
+      pickupsPerMonth = 5;
+    } else if (schedule?.value === "weekly") {
+      pickupsPerMonth = 4;
+    }
+
+    return Math.round(perPickupFee * pickupsPerMonth * 100) / 100;
+  };
+
   const handleSchedulePickup = (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -208,25 +271,56 @@ export default function DashboardPage() {
       return;
     }
 
-    if (!pickupDate && !useCustomSchedule && !selectedSchedule) {
+    if (!useCustomSchedule && !selectedSchedule) {
       alert("Please select a schedule option");
       return;
     }
+
+    // Check if both bins are deselected
+    if (!collectRecyclables && !collectTrash) {
+      alert("Please select at least one bin");
+      return;
+    }
+
+    // Calculate monthly fee for this schedule
+    const monthlyFee = calculateMonthlyFee(
+      selectedSchedule,
+      collectRecyclables,
+      collectTrash,
+      useCustomSchedule ? customDays : undefined
+    );
 
     // Deduct fee from balance
     const newBalance = balance - fee;
     setBalance(newBalance);
 
-    // Add transaction
+    // Add scheduled pickup
     const scheduleLabel = useCustomSchedule 
       ? `Every ${customDays} days`
       : selectedSchedule?.label || "Unknown";
 
+    const nextPickupDate = new Date();
+    nextPickupDate.setDate(nextPickupDate.getDate() + 1);
+
+    const newScheduledPickup: ScheduledPickup = {
+      id: `${Date.now()}`,
+      frequency: scheduleLabel,
+      recyclables: collectRecyclables,
+      trash: collectTrash,
+      monthlyFee: monthlyFee,
+      nextPickupDate: nextPickupDate.toISOString().split("T")[0],
+      frequency_value: selectedSchedule?.value,
+      customDays: useCustomSchedule ? customDays : undefined,
+    };
+
+    setScheduledPickups([...scheduledPickups, newScheduledPickup]);
+
+    // Add transaction
     const newTransaction: Transaction = {
       id: `${Date.now()}`,
       date: new Date().toISOString().split("T")[0],
       type: "pickup",
-      material: collectRecyclables ? "Recyclables" : "Trash",
+      material: collectRecyclables && collectTrash ? "Both Bins" : collectRecyclables ? "Recyclables" : "Trash",
       amount: -fee,
       status: "completed",
       frequency: scheduleLabel,
@@ -238,13 +332,16 @@ export default function DashboardPage() {
     setSelectedSchedule(null);
     setPickupDate("");
     setUseCustomSchedule(false);
+    setCollectRecyclables(true);
+    setCollectTrash(true);
 
     setTimeout(() => {
       alert(
         `✅ Pickup scheduled!\n\n${scheduleLabel}\n` +
-        `Recyclables: ${collectRecyclables ? "Yes (-₨${selectedSchedule?.recyclableFee})": "No"}\n` +
-        `Trash: ${collectTrash ? `Yes (-₨${selectedSchedule?.trashFee})` : "No"}\n` +
-        `Total Fee: -₨${fee}\n` +
+        `Recyclables: ${collectRecyclables ? "Yes" : "No"}\n` +
+        `Trash: ${collectTrash ? "Yes" : "No"}\n` +
+        `Monthly Fee: ₨${monthlyFee}\n` +
+        `Immediate Charge: -₨${fee}\n` +
         `New Balance: ₨${newBalance}`
       );
       setPickupScheduled(false);
@@ -278,12 +375,15 @@ export default function DashboardPage() {
   };
 
   const handleWithdraw = () => {
-    if (balance < 100) {
-      alert("Minimum withdrawal is ₨100");
+    const availableBalance = getAvailableBalance();
+    
+    if (availableBalance < 100) {
+      const lockedFees = calculateMonthlyLockedFees();
+      alert(`❌ Cannot withdraw\n\nYour balance is ₨${balance}\nLocked for upcoming pickups: ₨${lockedFees}\nAvailable balance: ₨${availableBalance}\n\nMinimum withdrawal is ₨100`);
       return;
     }
 
-    const amount = Math.floor(balance / 100) * 100;
+    const amount = Math.floor(availableBalance / 100) * 100;
     setBalance((prev) => prev - amount);
 
     const newTransaction: Transaction = {
@@ -323,9 +423,20 @@ export default function DashboardPage() {
             {/* Balance Card */}
             <div className="bg-gradient-to-br from-green-600/20 via-green-900/10 to-black border border-green-500/30 rounded-2xl p-8 hover:border-green-400/50 transition-all">
               <p className="text-gray-400 text-sm mb-2">Your Trash Wallet Balance</p>
-              <h2 className="text-4xl sm:text-5xl font-black text-green-400 mb-6">
+              <h2 className="text-4xl sm:text-5xl font-black text-green-400 mb-4">
                 ₨{balance.toLocaleString()}
               </h2>
+              {calculateMonthlyLockedFees() > 0 && (
+                <div className="mb-4 pb-4 border-b border-white/10">
+                  <p className="text-xs text-gray-400 mb-2">Locked for Pickups</p>
+                  <p className="text-sm font-bold text-orange-400 mb-2">
+                    -₨{calculateMonthlyLockedFees()} (monthly)
+                  </p>
+                  <p className="text-xs text-green-300 font-semibold">
+                    Available: ₨{getAvailableBalance().toLocaleString()}
+                  </p>
+                </div>
+              )}
               <div className="flex gap-3">
                 <button
                   onClick={() => setShowAddFundsModal(true)}
@@ -335,7 +446,7 @@ export default function DashboardPage() {
                 </button>
                 <button
                   onClick={handleWithdraw}
-                  disabled={balance < 100}
+                  disabled={getAvailableBalance() < 100}
                   className="flex-1 bg-green-600 hover:bg-green-500 disabled:bg-gray-600 text-white font-bold py-3 rounded-lg transition-all duration-200"
                 >
                   Withdraw
@@ -378,6 +489,66 @@ export default function DashboardPage() {
               </div>
             </div>
           </div>
+
+          {/* Scheduled Pickups Section */}
+          {scheduledPickups.length > 0 && (
+            <div className="mb-10">
+              <h2 className="text-2xl font-bold text-white mb-6">Your Active Schedules</h2>
+              <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {scheduledPickups.map((pickup) => (
+                  <div
+                    key={pickup.id}
+                    className="bg-white/[0.03] border border-white/10 hover:border-blue-500/30 rounded-2xl p-6 transition-all"
+                  >
+                    <div className="flex items-start justify-between mb-4">
+                      <div>
+                        <p className="text-sm text-gray-400 mb-1">Schedule Frequency</p>
+                        <h3 className="text-lg font-bold text-white">{pickup.frequency}</h3>
+                      </div>
+                      <span className="text-2xl">🔄</span>
+                    </div>
+
+                    <div className="space-y-3 mb-4 pb-4 border-b border-white/10">
+                      {pickup.recyclables && (
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="text-gray-300">♻️ Recyclables</span>
+                          <span className="text-green-400">Collecting</span>
+                        </div>
+                      )}
+                      {pickup.trash && (
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="text-gray-300">🗑️ Trash</span>
+                          <span className="text-orange-400">Collecting</span>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="mb-4">
+                      <p className="text-xs text-gray-500 mb-1">Monthly Charge</p>
+                      <p className="text-2xl font-black text-cyan-400">
+                        ₨{pickup.monthlyFee}
+                      </p>
+                    </div>
+
+                    <div className="text-xs text-gray-400 mb-4">
+                      Next pickup: <span className="text-white font-semibold">{pickup.nextPickupDate}</span>
+                    </div>
+
+                    <button
+                      onClick={() => {
+                        setScheduledPickups(scheduledPickups.filter((p) => p.id !== pickup.id));
+                        setBalance((prev) => prev + calculateFee());
+                        alert(`❌ Schedule cancelled. ₨${calculateFee()} credit applied.`);
+                      }}
+                      className="w-full text-xs bg-red-600/20 hover:bg-red-600/30 text-red-300 border border-red-500/30 font-bold py-2 rounded-lg transition-colors"
+                    >
+                      Cancel Schedule
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Bins Status & Market Rates */}
           <div className="grid lg:grid-cols-3 gap-6 mb-10">
@@ -623,9 +794,24 @@ export default function DashboardPage() {
                   )}
                   <div className="border-t border-white/10 pt-2 mt-2">
                     <div className="flex justify-between">
-                      <span className="font-bold text-white">Total Fee</span>
-                      <span className="font-bold text-cyan-400">-₨{calculateFee()}</span>
-                    </div>
+                       <span className="font-bold text-white">First Pickup Charge</span>
+                       <span className="font-bold text-cyan-400">-₨{calculateFee()}</span>
+                       </div>
+                       
+                       <div className="bg-white/5 rounded p-2 mt-2">
+                         <div className="flex justify-between mb-1">
+                           <span className="text-xs text-gray-400">📅 Monthly Fee (Locked)</span>
+                           <span className="text-xs font-bold text-orange-400">-₨{calculateMonthlyFee(selectedSchedule, collectRecyclables, collectTrash, useCustomSchedule ? customDays : undefined)}</span>
+                         </div>
+                         <p className="text-xs text-gray-500">This will be locked from your wallet each month</p>
+                       </div>
+                       
+                       <div className="flex justify-between mt-2">
+                         <span className="text-gray-400">Your Balance</span>
+                         <span className={balance >= calculateFee() ? "text-green-400" : "text-red-400"}>
+                           ₨{balance}
+                         </span>
+                       </div>
                     <div className="flex justify-between mt-2 text-xs">
                       <span className="text-gray-400">Current Balance</span>
                       <span className={balance >= calculateFee() ? "text-green-400" : "text-red-400"}>
