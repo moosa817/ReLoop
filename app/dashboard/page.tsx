@@ -8,10 +8,11 @@ import { useAuth } from "@/components/AuthProvider";
 interface Transaction {
   id: string;
   date: string;
-  type: "pickup" | "withdrawal";
+  type: "pickup" | "withdrawal" | "add_funds";
   amount: number;
   material?: string;
   status: "completed" | "pending";
+  frequency?: string;
 }
 
 interface MaterialRate {
@@ -21,6 +22,73 @@ interface MaterialRate {
   trendPercent: number;
   icon: string;
 }
+
+interface ScheduleOption {
+  label: string;
+  value: string;
+  recyclableFee: number;
+  trashFee: number;
+  description: string;
+}
+
+const scheduleOptions: ScheduleOption[] = [
+  {
+    label: "On-Demand",
+    value: "on-demand",
+    recyclableFee: 2,
+    trashFee: 50,
+    description: "Pick up whenever you want",
+  },
+  {
+    label: "Every Day",
+    value: "daily",
+    recyclableFee: 2,
+    trashFee: 20,
+    description: "Daily collection (lowest per-pickup cost)",
+  },
+  {
+    label: "Every 2 Days",
+    value: "every-2-days",
+    recyclableFee: 2,
+    trashFee: 15,
+    description: "Bi-daily collection",
+  },
+  {
+    label: "Every 3 Days",
+    value: "every-3-days",
+    recyclableFee: 2,
+    trashFee: 12,
+    description: "Tri-daily collection",
+  },
+  {
+    label: "Every 4 Days",
+    value: "every-4-days",
+    recyclableFee: 2,
+    trashFee: 10,
+    description: "Collection every 4 days",
+  },
+  {
+    label: "Every 5 Days",
+    value: "every-5-days",
+    recyclableFee: 2,
+    trashFee: 8,
+    description: "Collection every 5 days",
+  },
+  {
+    label: "Every 6 Days",
+    value: "every-6-days",
+    recyclableFee: 2,
+    trashFee: 6,
+    description: "Collection every 6 days",
+  },
+  {
+    label: "Every 7 Days",
+    value: "weekly",
+    recyclableFee: 2,
+    trashFee: 5,
+    description: "Weekly collection (minimal cost)",
+  },
+];
 
 export default function DashboardPage() {
   const { isLoggedIn } = useAuth();
@@ -93,7 +161,14 @@ export default function DashboardPage() {
 
   const [pickupScheduled, setPickupScheduled] = useState(false);
   const [showPickupModal, setShowPickupModal] = useState(false);
+  const [showAddFundsModal, setShowAddFundsModal] = useState(false);
   const [pickupDate, setPickupDate] = useState("");
+  const [selectedSchedule, setSelectedSchedule] = useState<ScheduleOption | null>(null);
+  const [collectRecyclables, setCollectRecyclables] = useState(true);
+  const [collectTrash, setCollectTrash] = useState(true);
+  const [customDays, setCustomDays] = useState(1);
+  const [useCustomSchedule, setUseCustomSchedule] = useState(false);
+  const [addFundsAmount, setAddFundsAmount] = useState("");
   const [binsFull, setBinsFull] = useState({
     recyclables: false,
     organic: false,
@@ -105,23 +180,122 @@ export default function DashboardPage() {
     }
   }, [isLoggedIn, router]);
 
+  const calculateFee = (): number => {
+    let totalFee = 0;
+    const schedule = useCustomSchedule 
+      ? { recyclableFee: 2, trashFee: 50 / customDays }
+      : selectedSchedule;
+
+    if (!schedule) return 0;
+
+    if (collectRecyclables) {
+      totalFee += schedule.recyclableFee;
+    }
+    if (collectTrash) {
+      totalFee += schedule.trashFee;
+    }
+
+    return Math.round(totalFee * 100) / 100;
+  };
+
   const handleSchedulePickup = (e: React.FormEvent) => {
     e.preventDefault();
-    if (pickupDate) {
-      setPickupScheduled(true);
-      setShowPickupModal(false);
-      setTimeout(() => {
-        alert("Pickup scheduled! Our collector will arrive within 2 hours.");
-        setPickupScheduled(false);
-      }, 500);
+    
+    const fee = calculateFee();
+    
+    if (balance < fee) {
+      alert(`Insufficient balance. You need ₨${fee} but have ₨${balance}. Add funds first!`);
+      return;
     }
+
+    if (!pickupDate && !useCustomSchedule && !selectedSchedule) {
+      alert("Please select a schedule option");
+      return;
+    }
+
+    // Deduct fee from balance
+    const newBalance = balance - fee;
+    setBalance(newBalance);
+
+    // Add transaction
+    const scheduleLabel = useCustomSchedule 
+      ? `Every ${customDays} days`
+      : selectedSchedule?.label || "Unknown";
+
+    const newTransaction: Transaction = {
+      id: `${Date.now()}`,
+      date: new Date().toISOString().split("T")[0],
+      type: "pickup",
+      material: collectRecyclables ? "Recyclables" : "Trash",
+      amount: -fee,
+      status: "completed",
+      frequency: scheduleLabel,
+    };
+
+    setTransactions([newTransaction, ...transactions]);
+    setPickupScheduled(true);
+    setShowPickupModal(false);
+    setSelectedSchedule(null);
+    setPickupDate("");
+    setUseCustomSchedule(false);
+
+    setTimeout(() => {
+      alert(
+        `✅ Pickup scheduled!\n\n${scheduleLabel}\n` +
+        `Recyclables: ${collectRecyclables ? "Yes (-₨${selectedSchedule?.recyclableFee})": "No"}\n` +
+        `Trash: ${collectTrash ? `Yes (-₨${selectedSchedule?.trashFee})` : "No"}\n` +
+        `Total Fee: -₨${fee}\n` +
+        `New Balance: ₨${newBalance}`
+      );
+      setPickupScheduled(false);
+    }, 300);
+  };
+
+  const handleAddFunds = (e: React.FormEvent) => {
+    e.preventDefault();
+    const amount = parseFloat(addFundsAmount);
+
+    if (isNaN(amount) || amount <= 0) {
+      alert("Please enter a valid amount");
+      return;
+    }
+
+    setBalance((prev) => prev + amount);
+
+    const newTransaction: Transaction = {
+      id: `${Date.now()}`,
+      date: new Date().toISOString().split("T")[0],
+      type: "add_funds",
+      amount: amount,
+      status: "completed",
+    };
+
+    setTransactions([newTransaction, ...transactions]);
+    setAddFundsAmount("");
+    setShowAddFundsModal(false);
+
+    alert(`✅ Added ₨${amount} to your wallet!\nNew Balance: ₨${balance + amount}`);
   };
 
   const handleWithdraw = () => {
-    if (balance > 100) {
-      setBalance((prev) => prev - 100);
-      alert("₨100 withdrawn to EasyPaisa. Check your phone for confirmation.");
+    if (balance < 100) {
+      alert("Minimum withdrawal is ₨100");
+      return;
     }
+
+    const amount = Math.floor(balance / 100) * 100;
+    setBalance((prev) => prev - amount);
+
+    const newTransaction: Transaction = {
+      id: `${Date.now()}`,
+      date: new Date().toISOString().split("T")[0],
+      type: "withdrawal",
+      amount: -amount,
+      status: "completed",
+    };
+
+    setTransactions([newTransaction, ...transactions]);
+    alert(`✅ ₨${amount} withdrawn to EasyPaisa. Check your phone for confirmation.`);
   };
 
   if (!isLoggedIn) {
@@ -152,13 +326,21 @@ export default function DashboardPage() {
               <h2 className="text-4xl sm:text-5xl font-black text-green-400 mb-6">
                 ₨{balance.toLocaleString()}
               </h2>
-              <button
-                onClick={handleWithdraw}
-                disabled={balance < 100}
-                className="w-full bg-green-600 hover:bg-green-500 disabled:bg-gray-600 text-white font-bold py-3 rounded-lg transition-all duration-200"
-              >
-                Withdraw ₨100 to EasyPaisa
-              </button>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setShowAddFundsModal(true)}
+                  className="flex-1 bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 rounded-lg transition-all duration-200"
+                >
+                  Add Funds
+                </button>
+                <button
+                  onClick={handleWithdraw}
+                  disabled={balance < 100}
+                  className="flex-1 bg-green-600 hover:bg-green-500 disabled:bg-gray-600 text-white font-bold py-3 rounded-lg transition-all duration-200"
+                >
+                  Withdraw
+                </button>
+              </div>
             </div>
 
             {/* Next Pickup */}
@@ -310,29 +492,229 @@ export default function DashboardPage() {
       {/* Pickup Modal */}
       {showPickupModal && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-gray-900 border border-white/10 rounded-2xl p-8 max-w-md w-full animate-scale-in">
-            <h2 className="text-2xl font-bold text-white mb-6">Schedule a Pickup</h2>
-            <form onSubmit={handleSchedulePickup} className="space-y-5">
+          <div className="bg-gray-900 border border-white/10 rounded-2xl p-8 max-w-2xl w-full animate-scale-in max-h-[90vh] overflow-y-auto">
+            <h2 className="text-2xl font-bold text-white mb-2">Schedule Pickup</h2>
+            <p className="text-gray-400 text-sm mb-6">Choose your preferred pickup frequency and select which bins to collect</p>
+
+            <form onSubmit={handleSchedulePickup} className="space-y-6">
+              {/* Bins Selection */}
+              <div>
+                <h3 className="text-sm font-semibold text-white mb-4">Which bins do you want collected?</h3>
+                <div className="space-y-3">
+                  <label className="flex items-center p-4 bg-white/[0.03] border border-white/10 rounded-lg cursor-pointer hover:bg-white/5 transition-colors">
+                    <input
+                      type="checkbox"
+                      checked={collectRecyclables}
+                      onChange={(e) => setCollectRecyclables(e.target.checked)}
+                      className="w-4 h-4"
+                    />
+                    <span className="ml-3 flex-1">
+                      <span className="text-white font-medium">♻️ Recyclable Bin (Green)</span>
+                      <p className="text-xs text-gray-500 mt-1">You GET PAID for recyclables • Small collection fee (₨2)</p>
+                    </span>
+                    <span className="text-green-400 font-bold">+₨</span>
+                  </label>
+
+                  <label className="flex items-center p-4 bg-white/[0.03] border border-white/10 rounded-lg cursor-pointer hover:bg-white/5 transition-colors">
+                    <input
+                      type="checkbox"
+                      checked={collectTrash}
+                      onChange={(e) => setCollectTrash(e.target.checked)}
+                      className="w-4 h-4"
+                    />
+                    <span className="ml-3 flex-1">
+                      <span className="text-white font-medium">🗑️ Trash Bin (Brown)</span>
+                      <p className="text-xs text-gray-500 mt-1">Organic/general waste • Fee varies by frequency</p>
+                    </span>
+                    <span className="text-orange-400 font-bold">₨</span>
+                  </label>
+                </div>
+              </div>
+
+              {/* Schedule Options */}
+              <div>
+                <h3 className="text-sm font-semibold text-white mb-4">How often should we pick up?</h3>
+                
+                {/* Preset Options */}
+                {!useCustomSchedule && (
+                  <div className="space-y-3 mb-4">
+                    {scheduleOptions.map((option) => (
+                      <button
+                        key={option.value}
+                        type="button"
+                        onClick={() => setSelectedSchedule(option)}
+                        className={`w-full text-left p-4 border rounded-lg transition-all ${
+                          selectedSchedule?.value === option.value
+                            ? "bg-green-600/20 border-green-500/50"
+                            : "bg-white/[0.03] border-white/10 hover:bg-white/[0.08]"
+                        }`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="font-medium text-white">{option.label}</p>
+                            <p className="text-xs text-gray-400 mt-1">{option.description}</p>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-sm font-bold text-white">
+                              ₨{option.recyclableFee + option.trashFee}
+                            </p>
+                            <p className="text-xs text-gray-500">per pickup</p>
+                          </div>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {/* Custom Schedule Option */}
+                <button
+                  type="button"
+                  onClick={() => setUseCustomSchedule(!useCustomSchedule)}
+                  className="w-full p-4 border border-white/10 rounded-lg text-white font-medium text-sm hover:bg-white/5 transition-colors mb-4"
+                >
+                  {useCustomSchedule ? "← Back to Preset Options" : "+ Custom Schedule"}
+                </button>
+
+                {useCustomSchedule && (
+                  <div className="bg-white/[0.03] border border-white/10 rounded-lg p-4">
+                    <label className="block text-sm font-semibold text-gray-300 mb-3">
+                      Every how many days? (1-7)
+                    </label>
+                    <div className="flex items-center gap-4">
+                      <input
+                        type="range"
+                        min="1"
+                        max="7"
+                        value={customDays}
+                        onChange={(e) => setCustomDays(parseInt(e.target.value))}
+                        className="flex-1"
+                      />
+                      <span className="text-white font-bold text-2xl min-w-[60px] text-center">{customDays}</span>
+                      <span className="text-gray-400 text-sm">days</span>
+                    </div>
+                    <p className="text-xs text-gray-500 mt-3">
+                      Custom pickup: Every {customDays} day{customDays > 1 ? "s" : ""}
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              {/* Fee Summary */}
+              <div className="bg-gradient-to-r from-purple-600/10 to-pink-600/10 border border-purple-500/20 rounded-lg p-4">
+                <h3 className="text-sm font-semibold text-white mb-3">Schedule Summary</h3>
+                <div className="space-y-2 text-sm">
+                  {collectRecyclables && (
+                    <div className="flex justify-between text-gray-300">
+                      <span>♻️ Recyclable Collection</span>
+                      <span className="text-green-400">-₨2</span>
+                    </div>
+                  )}
+                  {collectTrash && selectedSchedule && (
+                    <div className="flex justify-between text-gray-300">
+                      <span>🗑️ Trash Pickup ({selectedSchedule.label})</span>
+                      <span className="text-orange-400">-₨{selectedSchedule.trashFee}</span>
+                    </div>
+                  )}
+                  {collectTrash && useCustomSchedule && (
+                    <div className="flex justify-between text-gray-300">
+                      <span>🗑️ Trash Pickup (Every {customDays} days)</span>
+                      <span className="text-orange-400">-₨{Math.round((50 / customDays) * 100) / 100}</span>
+                    </div>
+                  )}
+                  <div className="border-t border-white/10 pt-2 mt-2">
+                    <div className="flex justify-between">
+                      <span className="font-bold text-white">Total Fee</span>
+                      <span className="font-bold text-cyan-400">-₨{calculateFee()}</span>
+                    </div>
+                    <div className="flex justify-between mt-2 text-xs">
+                      <span className="text-gray-400">Current Balance</span>
+                      <span className={balance >= calculateFee() ? "text-green-400" : "text-red-400"}>
+                        ₨{balance}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {balance < calculateFee() && (
+                <div className="bg-red-600/10 border border-red-500/30 rounded-lg p-3">
+                  <p className="text-xs text-red-300">
+                    ⚠️ Insufficient balance. You need ₨{calculateFee()} but have ₨{balance}.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowPickupModal(false);
+                      setShowAddFundsModal(true);
+                    }}
+                    className="mt-2 text-xs font-bold text-red-300 hover:text-red-200 underline"
+                  >
+                    Add funds to your wallet →
+                  </button>
+                </div>
+              )}
+
+              {/* Action Buttons */}
+              <div className="flex gap-3 pt-4 border-t border-white/10">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowPickupModal(false);
+                    setSelectedSchedule(null);
+                    setUseCustomSchedule(false);
+                  }}
+                  className="flex-1 bg-white/10 hover:bg-white/20 text-white font-bold py-2 rounded-lg transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={!collectRecyclables && !collectTrash}
+                  className="flex-1 bg-green-600 hover:bg-green-500 disabled:bg-gray-600 text-white font-bold py-2 rounded-lg transition-colors"
+                >
+                  {calculateFee() > 0 ? `Confirm (₨${calculateFee()})` : "Select Option"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Add Funds Modal */}
+      {showAddFundsModal && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-gray-900 border border-white/10 rounded-2xl p-8 max-w-sm w-full animate-scale-in">
+            <h2 className="text-2xl font-bold text-white mb-2">Add Funds</h2>
+            <p className="text-gray-400 text-sm mb-6">Top up your Trash Wallet</p>
+
+            <form onSubmit={handleAddFunds} className="space-y-5">
               <div>
                 <label className="block text-sm font-semibold text-gray-300 mb-2">
-                  Preferred Date & Time
+                  Amount (PKR)
                 </label>
                 <input
-                  type="datetime-local"
-                  value={pickupDate}
-                  onChange={(e) => setPickupDate(e.target.value)}
-                  className="w-full px-4 py-3 bg-white/[0.05] border border-white/10 rounded-lg text-white focus:outline-none focus:border-green-500/50 transition-colors"
+                  type="number"
+                  placeholder="Enter amount"
+                  value={addFundsAmount}
+                  onChange={(e) => setAddFundsAmount(e.target.value)}
+                  className="w-full px-4 py-3 bg-white/[0.05] border border-white/10 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-green-500/50 transition-colors"
                 />
               </div>
-              <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-3">
-                <p className="text-xs text-blue-300">
-                  ℹ️ Collector will arrive within 2 hours of your selected time.
-                </p>
+
+              <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-4">
+                <p className="text-sm text-blue-300 mb-2">💳 Payment Methods</p>
+                <div className="space-y-2 text-xs text-blue-300/80">
+                  <p>✓ JazzCash</p>
+                  <p>✓ EasyPaisa</p>
+                  <p>✓ Bank Transfer</p>
+                  <p>✓ Debit/Credit Card</p>
+                </div>
               </div>
+
               <div className="flex gap-3">
                 <button
                   type="button"
-                  onClick={() => setShowPickupModal(false)}
+                  onClick={() => setShowAddFundsModal(false)}
                   className="flex-1 bg-white/10 hover:bg-white/20 text-white font-bold py-2 rounded-lg transition-colors"
                 >
                   Cancel
@@ -341,7 +723,7 @@ export default function DashboardPage() {
                   type="submit"
                   className="flex-1 bg-green-600 hover:bg-green-500 text-white font-bold py-2 rounded-lg transition-colors"
                 >
-                  Schedule
+                  Add Funds
                 </button>
               </div>
             </form>
